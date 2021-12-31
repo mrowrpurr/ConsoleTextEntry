@@ -1,0 +1,1 @@
+Scriptname ConsoleTextEntry extends Quest  
