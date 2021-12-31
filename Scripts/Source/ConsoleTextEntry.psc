@@ -4,9 +4,21 @@ float property Lock auto
 string property LastResult auto
 GlobalVariable Property ConsoleTextEntry_InProgress auto
 
-string function GetText(string prompt = "Enter text:", bool openConsole = true, bool closeConsole = true, float _lock = 0.0, float _waitInterval = 0.1) global
-    Debug.Notification("[TextEntry] GetText()")
+event OnInit()
+    RegisterForMenu("Console")
+endEvent
 
+event OnMenuClose(string menuName)
+    if menuName == "Console"
+        ; Cancel the search if still marked as InProgress when the ~ console menu was closed
+        if ConsoleTextEntry_InProgress.Value
+            LastResult = ""
+            ConsoleTextEntry_InProgress.Value = 0 ; <--- unblock things so the last GetText() can complete
+        endIf
+    endIf
+endEvent
+
+string function GetText(string prompt = "Enter text:", bool openConsole = true, bool closeConsole = true, float _lock = 0.0, float _waitInterval = 0.1) global
     if ! UI.GetBool("Console", "_global.Console.SupportsCustomCommands")
         Debug.Trace("[ConsoleTextEntry] Error: console.swf does not support custom commands. Make sure to put ConsoleTextEntry at the bottom of the load order. Note: currently incompatible with More Informative Console")
         return ""
@@ -30,13 +42,28 @@ string function GetText(string prompt = "Enter text:", bool openConsole = true, 
             textEntry.RegisterForKey(156) ; Return
 
             UI.SetBool("Console", "_global.Console.HandleEnterKey", false)
-            string history = UI.GetString("Console", "_global.Console.ConsoleInstance.CommandHistory.text")
-            UI.SetString("Console", "_global.Console.ConsoleInstance.CommandHistory.text", prompt)
-            UI.SetString("Console", "_global.Console.ConsoleInstance.CommandEntry.text", "")
+
+            bool consolePreviouslyLoaded = UI.GetString("Console", "_global.Console.InstanceLoaded")
+            string history
+            string currentSelection
+            if consolePreviouslyLoaded
+                history = UI.GetString("Console", "_global.Console.ConsoleInstance.CommandHistory.text")
+                currentSelection = UI.GetString("Console", "_global.Console.ConsoleInstance.CurrentSelection.text")
+                UI.SetString("Console", "_global.Console.ConsoleInstance.CommandHistory.text", prompt)
+                UI.SetString("Console", "_global.Console.ConsoleInstance.CommandEntry.text", "")
+                UI.SetString("Console", "_global.Console.ConsoleInstance.CurrentSelection.text", "")
+            endIf
 
             if openConsole && ! UI.GetBool("Console", "_global.Console.ConsoleInstance.Shown")
-                Debug.Notification("[TextEntry] Opening ~ Console")
                 Input.TapKey(41) ; ~
+            endIf
+
+            if ! consolePreviouslyLoaded ; None of the commands above would've worked without a ConsoleInstance - this is for first time ~ open
+                history = UI.GetString("Console", "_global.Console.ConsoleInstance.CommandHistory.text")
+                currentSelection = UI.GetString("Console", "_global.Console.ConsoleInstance.CurrentSelection.text")
+                UI.SetString("Console", "_global.Console.ConsoleInstance.CommandHistory.text", prompt)
+                UI.SetString("Console", "_global.Console.ConsoleInstance.CommandEntry.text", "")
+                UI.SetString("Console", "_global.Console.ConsoleInstance.CurrentSelection.text", "")
             endIf
 
             string result
@@ -46,14 +73,14 @@ string function GetText(string prompt = "Enter text:", bool openConsole = true, 
             endWhile
             result = textEntry.LastResult
 
-            UI.SetString("Console", "_global.Console.ConsoleInstance.CommandEntry.text", "")
-            UI.SetString("Console", "_global.Console.ConsoleInstance.CommandHistory.text", history)
-            UI.SetBool("Console", "_global.Console.HandleEnterKey", true)
-
             if closeConsole && UI.GetBool("Console", "_global.Console.ConsoleInstance.Shown")
-                Debug.Notification("[TextEntry] Closing ~ Console")
                 Input.TapKey(41) ; ~
             endIf
+
+            UI.SetString("Console", "_global.Console.ConsoleInstance.CommandEntry.text", "")
+            UI.SetString("Console", "_global.Console.ConsoleInstance.CommandHistory.text", history)
+            UI.SetString("Console", "_global.Console.ConsoleInstance.CurrentSelection.text", currentSelection)
+            UI.SetBool("Console", "_global.Console.HandleEnterKey", true)
 
             textEntry.Lock = 0
 
